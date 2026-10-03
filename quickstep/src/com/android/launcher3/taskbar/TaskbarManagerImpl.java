@@ -372,7 +372,9 @@ public class TaskbarManagerImpl {
 
         var enableTaskbarSafeCloseable = settingsCache.getIntListenableRef(ENABLE_TASKBAR_URI).forEach(
                 getTaskbarUiThread(),
-                v -> onTaskbarIntChanged(v, TaskbarActivityContext::isTaskbarEnabled));
+                // Only the primary display follows the toggle, so only it can be out of date.
+                v -> onTaskbarIntChanged(v, activity -> activity.isPrimaryDisplay()
+                        ? activity.isTaskbarEnabled() : v));
         cleanupTasks.addCloseable(getTaskbarUiThread(), enableTaskbarSafeCloseable);
 
         var enableNavbarHintSafeCloseable = settingsCache.getListenableRef(NAVIGATION_BAR_HINT_URI)
