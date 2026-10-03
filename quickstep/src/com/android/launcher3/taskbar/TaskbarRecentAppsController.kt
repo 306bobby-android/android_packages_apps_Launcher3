@@ -40,6 +40,7 @@ import com.android.quickstep.RecentsFilterState
 import com.android.quickstep.RecentsModel
 import com.android.quickstep.util.DesktopTask
 import com.android.quickstep.util.GroupTask
+import com.android.quickstep.util.LmoDesktopWindows
 import com.android.quickstep.util.SingleTask
 import com.android.quickstep.util.SplitTask
 import com.android.quickstep.util.TaskVisualsChangeListener
@@ -60,7 +61,9 @@ class TaskbarRecentAppsController(
     private val desktopModeCompatPolicy: DesktopModeCompatPolicy,
 ) : LoggableTaskbarController {
 
-    var canShowRunningApps = DesktopModeStatus.canEnterDesktopMode(context)
+    // LMOFreeform provides desktop windows even where Shell desktop mode is unavailable.
+    var canShowRunningApps =
+        DesktopModeStatus.canEnterDesktopMode(context) || LmoDesktopWindows.isAvailable()
         @VisibleForTesting
         set(isEnabledFromTest) {
             field = isEnabledFromTest
@@ -233,7 +236,10 @@ class TaskbarRecentAppsController(
             // taskbar.
             return taskbarRunningTasks
                 .flatMap { it.tasks }
-                .filter { task -> task.isMinimized }
+                .filter { task ->
+                    task.isMinimized ||
+                        LmoDesktopWindows.getWindowForTask(task.key.id)?.minimized == true
+                }
                 .map { task -> task.key.id }
                 .toSet()
         }
@@ -428,7 +434,9 @@ class TaskbarRecentAppsController(
                                 // CURRENTLY IGNORED: Preserve current behavior by returning empty
                                 // lists
                                 is SplitTask -> emptyList()
-                                is SingleTask -> emptyList()
+                                // Except LMO windows, which are desktop windows on this display.
+                                is SingleTask ->
+                                    listOf(group).filter { isLmoTaskOnThisDisplay(it.task.key.id) }
                                 else -> emptyList<GroupTask>()
                             }
                         }
@@ -451,6 +459,10 @@ class TaskbarRecentAppsController(
                 }
             }
     }
+
+    private fun isLmoTaskOnThisDisplay(taskId: Int) =
+        LmoDesktopWindows.getWindowForTask(taskId)?.hostDisplayId ==
+            controllers.taskbarActivityContext.displayId
 
     /**
      * Updates [shownTasks] when Recents or Hotseat changes.

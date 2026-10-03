@@ -36,6 +36,7 @@ import android.os.Trace.traceBegin
 import android.os.Trace.traceEnd
 import android.os.UserHandle
 import android.util.Log
+import android.view.Display
 import android.view.IRemoteAnimationRunner
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -67,6 +68,7 @@ import com.android.launcher3.util.Preconditions
 import com.android.launcher3.util.SplitConfigurationOptions.StagePosition
 import com.android.quickstep.util.ActiveGestureProtoLogProxy
 import com.android.quickstep.util.ContextualSearchInvoker
+import com.android.quickstep.util.LmoDesktopWindows
 import com.android.quickstep.util.binder.OneWayBinderList
 import com.android.quickstep.util.unfold.ProxyUnfoldTransitionProvider
 import com.android.systemui.contextualeducation.GestureType
@@ -927,10 +929,28 @@ constructor(
      * Call the desktop mode interface to start a TRANSIT_OPEN transition when launching an intent
      * from the taskbar so that it can be handled in desktop mode.
      */
-    fun startLaunchIntentTransition(pendingIntent: PendingIntent, options: Bundle, displayId: Int) =
+    fun startLaunchIntentTransition(pendingIntent: PendingIntent, options: Bundle, displayId: Int) {
+        // Shell can't create desks on external displays here and drops the launch; a plain start
+        // on that display is turned into an LMOFreeform window by WM instead.
+        if (displayId != Display.DEFAULT_DISPLAY && LmoDesktopWindows.isRoutingEnabled()) {
+            val opts =
+                ActivityOptions.fromBundle(options).apply {
+                    launchDisplayId = displayId
+                    setPendingIntentBackgroundActivityStartMode(
+                        ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOW_ALWAYS
+                    )
+                }
+            try {
+                pendingIntent.send(context, 0, null, null, null, null, opts.toBundle())
+            } catch (e: PendingIntent.CanceledException) {
+                Log.e(TAG, "Failed to launch on display $displayId", e)
+            }
+            return
+        }
         executeWithErrorLog({ "Failed call startLaunchIntentTransition" }) {
             desktopMode?.startLaunchIntentTransition(pendingIntent, options, displayId)
         }
+    }
 
     //
     // One handed
@@ -1226,10 +1246,13 @@ constructor(
         taskId: Int,
         transition: RemoteTransition?,
         toFrontReason: DesktopTaskToFrontReason,
-    ) =
+    ) {
+        // Shell would pull an LMO task out of its window into a desk; LMO handles it instead.
+        if (LmoDesktopWindows.toggle(taskId)) return
         executeWithErrorLog({ "Failed call showDesktopApp" }) {
             desktopMode?.showDesktopApp(taskId, transition, toFrontReason)
         }
+    }
 
     /** Call shell to move to an existing fullscreen task (given by [taskId]) from desktop. */
     @JvmOverloads

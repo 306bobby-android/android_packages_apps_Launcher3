@@ -45,6 +45,7 @@ import com.android.quickstep.recents.data.RecentTasksKeysDataSource
 import com.android.quickstep.util.AxSandboxState
 import com.android.quickstep.util.DesktopTask
 import com.android.quickstep.util.GroupTask
+import com.android.quickstep.util.LmoDesktopWindows
 import com.android.quickstep.util.SingleTask
 import com.android.quickstep.util.SplitTask
 import com.android.systemui.shared.recents.model.Task
@@ -151,6 +152,11 @@ constructor(
         // App lock changes must invalidate the cached list so tasks pick up the new isLocked.
         sandboxState.addChangeListener(sandboxChangeListener)
         tracker.addCloseable { sandboxState.removeChangeListener(sandboxChangeListener) }
+
+        // LMO state decides the display a task is reported on, so cached keys go stale with it.
+        val lmoListener = Runnable { mainThreadExecutor.execute { onRecentTasksChanged() } }
+        LmoDesktopWindows.addChangeListener(lmoListener)
+        tracker.addCloseable { LmoDesktopWindows.removeChangeListener(lmoListener) }
     }
 
     /** Fetches the task keys skipping any local cache. */
@@ -406,12 +412,13 @@ constructor(
 
     /**
      * If the display id belongs to a virtual device, it should be treated as if it is running on
-     * the default display.
+     * the default display. LMOFreeform displays are treated as the display their window is on.
      *
      * @return The mapped display id of the given display id
      */
     fun getRecentsDisplayId(displayId: Int) =
-        if (virtualDeviceDisplays[displayId]) Display.DEFAULT_DISPLAY else displayId
+        LmoDesktopWindows.getHostDisplayId(displayId)
+            ?: if (virtualDeviceDisplays[displayId]) Display.DEFAULT_DISPLAY else displayId
 
     private fun createDesktopTasks(recentTaskInfo: GroupedTaskInfo): List<DesktopTask> {
         val minimizedTaskIdArray = recentTaskInfo.minimizedTaskIds

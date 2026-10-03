@@ -22,6 +22,7 @@ import com.android.launcher3.statehandlers.DesktopVisibilityController.DesktopVi
 import com.android.launcher3.taskbar.TaskbarBackgroundRenderer.Companion.MAX_ROUNDNESS
 import com.android.launcher3.util.Executors.getTaskbarUiThread
 import com.android.launcher3.util.SafeCloseable
+import com.android.quickstep.util.LmoDesktopWindows
 
 /** Handles Taskbar in Desktop Windowing mode. */
 class TaskbarDesktopModeController(
@@ -78,7 +79,8 @@ class TaskbarDesktopModeController(
 
     fun shouldShowDesktopTasksInTaskbar(displayId: Int): Boolean {
         return isInDesktopMode(displayId) ||
-            taskbarActivityContext.showDesktopTaskbarForFreeformDisplay()
+            taskbarActivityContext.showDesktopTaskbarForFreeformDisplay() ||
+            LmoDesktopWindows.getWindowsOnHost(displayId).isNotEmpty()
     }
 
     fun getTaskbarCornerRoundness(doesAnyTaskRequireTaskbarRounding: Boolean): Float {
