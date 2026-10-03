@@ -236,7 +236,17 @@ object InputConsumerUtils {
                     (tac.deviceProfile.deviceProperties.taskbarConfiguration.isTaskbarPresent &&
                         !tac.isPhoneMode &&
                         !tac.isInStashedLauncherState)
-                if (canStartSystemGesture && useTaskbarConsumer) {
+                // Fullscreen apps disable system gestures, but on an external display a mouse hover
+                // is the only way back to a stashed taskbar.
+                val isExternalHover =
+                    !tac.isPrimaryDisplay &&
+                        event.actionMasked in
+                            intArrayOf(
+                                MotionEvent.ACTION_HOVER_ENTER,
+                                MotionEvent.ACTION_HOVER_MOVE,
+                                MotionEvent.ACTION_HOVER_EXIT,
+                            )
+                if ((canStartSystemGesture || isExternalHover) && useTaskbarConsumer) {
                     reasonString.append(
                         "%s%s%sTaskbarActivityContext != null, " +
                             "using TaskbarUnstashInputConsumer",
